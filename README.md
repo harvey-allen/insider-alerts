@@ -67,6 +67,44 @@ MONITORS=SEC cargo run
 cargo check
 ```
 
+## Docker
+
+Run App + Redis together:
+
+```zsh
+docker compose up --build
+```
+
+Run detached:
+
+```zsh
+docker compose up -d --build
+```
+
+Stop and remove containers:
+
+```zsh
+docker compose down
+```
+
+Tail app logs:
+
+```zsh
+docker compose logs -f app
+```
+
+Check Redis keys from host:
+
+```zsh
+redis-cli -h 127.0.0.1 -p 6379 KEYS 'monitor:*'
+redis-cli -h 127.0.0.1 -p 6379 LRANGE monitor:all:transactions 0 -1
+```
+
+Notes:
+
+- `Dockerfile` defaults to `MONITORS=SEC`
+- `docker-compose.yml` sets `REDIS_URL=redis://redis:6379/`
+
 ## Redis Keys
 
 The app clears and rewrites monitor keys at startup.
