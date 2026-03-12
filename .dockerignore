@@ -1,0 +1,10 @@
+target/
+.git/
+.gitignore
+debug_xml/
+dump.rdb
+.env
+.env.*
+README.md
+Dockerfile
+docker-compose.yml
