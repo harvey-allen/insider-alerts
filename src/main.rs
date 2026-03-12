@@ -1,4 +1,5 @@
-mod sec;
+mod authorities;
+mod helpers;
 
 use redis::AsyncCommands;
 use reqwest::Client;
@@ -7,7 +8,7 @@ use std::collections::HashSet;
 use std::env;
 use tokio::time::{sleep, Duration};
 
-use sec::SecForm4Monitor;
+use authorities::sec::SecForm4Monitor;
 
 #[derive(Debug, Serialize)]
 pub struct InsiderTransaction {
@@ -37,6 +38,22 @@ fn parse_selected_monitors() -> HashSet<String> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!(
+r#"██╗███╗   ██╗███████╗██╗██████╗ ███████╗██████╗ 
+██║████╗  ██║██╔════╝██║██╔══██╗██╔════╝██╔══██╗
+██║██╔██╗ ██║███████╗██║██║  ██║█████╗  ██████╔╝
+██║██║╚██╗██║╚════██║██║██║  ██║██╔══╝  ██╔══██╗
+██║██║ ╚████║███████║██║██████╔╝███████╗██║  ██║
+╚═╝╚═╝  ╚═══╝╚══════╝╚═╝╚═════╝ ╚══════╝╚═╝  ╚═╝
+
+█████╗ ██╗     ███████╗██████╗ ████████╗
+██╔══██╗██║     ██╔════╝██╔══██╗╚══██╔══╝
+███████║██║     █████╗  ██████╔╝   ██║   
+██╔══██║██║     ██╔══╝  ██╔══██╗   ██║   
+██║  ██║███████╗███████╗██║  ██║   ██║   
+╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝   ╚═╝"#
+    );
+
     let client = Client::builder()
         .user_agent("HarveyAllen research@example.com")
         .build()?;
@@ -46,12 +63,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let selected_monitors = parse_selected_monitors();
     let run_sec = selected_monitors.contains("SEC");
+    
 
     if !run_sec {
         return Err("No valid monitors selected. Use MONITORS=SEC".into());
     }
 
-    println!("Running monitors: {:?}", selected_monitors);
+    let mut monitor_list: Vec<_> = selected_monitors.iter().cloned().collect();
+    monitor_list.sort();
+    println!("Running monitors: {}", monitor_list.join(", "));
 
     let mut redis_keys_to_clear = vec!["monitor:all:transactions".to_string()];
     if run_sec {
@@ -59,7 +79,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let _: () = redis_conn.del(redis_keys_to_clear).await?;
-    println!("Wiped REDIS");
 
     let mut sec_monitor = if run_sec {
         Some(SecForm4Monitor::new(client.clone(), "SEC")?)

@@ -7,16 +7,11 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::helpers::{log_green, log_red};
 use crate::InsiderTransaction;
 
 const SEC_FEED: &str =
     "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&output=atom";
-const SEC_BLUE: &str = "\x1b[34m";
-const COLOR_RESET: &str = "\x1b[0m";
-
-fn sec_log(message: impl std::fmt::Display) {
-    println!("{SEC_BLUE}[SEC] {message}{COLOR_RESET}");
-}
 
 pub struct SecForm4Monitor {
     authority: String,
@@ -91,7 +86,7 @@ impl SecForm4Monitor {
                     format!("{}/{}", base, xml_file)
                 };
 
-                sec_log(format!("Fetching XML: {}", xml_url));
+                log_green("SEC", format!("Fetching XML: {}", xml_url));
 
                 let xml = self.client.get(&xml_url).send().await?.text().await?;
 
@@ -102,7 +97,7 @@ impl SecForm4Monitor {
 
                     let transactions = self.parse_form4(&xml)?;
                     for tx in transactions {
-                        sec_log(format!(
+                        log_green("SEC", format!(
                             "Parsed Form4: authority: {}, issuer: {}, insider: {}, type: {}, security: {}, date: {}, shares: {}, price: {}",
                             tx.authority,
                             tx.issuer_name,
@@ -308,7 +303,7 @@ impl SecForm4Monitor {
                 }
                 Ok(Event::Eof) => break,
                 Err(e) => {
-                    sec_log(format!("XML parse error: {:?}", e));
+                    log_red("SEC", format!("XML parse error: {:?}", e));
                     break;
                 }
                 _ => {}
