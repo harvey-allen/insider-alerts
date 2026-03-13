@@ -3,9 +3,6 @@ use quick_xml::Reader;
 use regex::Regex;
 use reqwest::Client;
 use std::collections::HashSet;
-use std::fs;
-use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::helpers::{log_green, log_red};
 use crate::InsiderTransaction;
@@ -116,27 +113,6 @@ impl SecForm4Monitor {
         }
 
         Ok(all_transactions)
-    }
-
-    fn save_debug_xml(
-        &self,
-        xml_url: &str,
-        xml: &str,
-    ) -> Result<PathBuf, Box<dyn std::error::Error>> {
-        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
-        let file_name = xml_url
-            .rsplit('/')
-            .next()
-            .unwrap_or("form4.xml")
-            .replace(['?', '&', '='], "_");
-
-        let directory = PathBuf::from("debug_xml").join(&self.authority);
-        fs::create_dir_all(&directory)?;
-
-        let path = directory.join(format!("{}_{}", timestamp, file_name));
-        fs::write(&path, xml)?;
-
-        Ok(path)
     }
 
     fn read_nested_text(
@@ -311,5 +287,138 @@ impl SecForm4Monitor {
         }
 
         Ok(transactions)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SecForm4Monitor;
+    use reqwest::Client;
+
+    fn build_monitor() -> SecForm4Monitor {
+        SecForm4Monitor::new(Client::new(), "TEST").expect("monitor should construct")
+    }
+
+    #[test]
+    fn parse_form4_extracts_expected_fields() {
+        let monitor = build_monitor();
+        let xml = r#"
+        <ownershipDocument>
+            <issuer>
+                <issuerName>Example Corp</issuerName>
+                <issuerTradingSymbol>EXM</issuerTradingSymbol>
+            </issuer>
+            <reportingOwner>
+                <reportingOwnerId>
+                    <rptOwnerCik>0001234567</rptOwnerCik>
+                    <rptOwnerName>Jane Insider</rptOwnerName>
+                </reportingOwnerId>
+            </reportingOwner>
+            <periodOfReport>2026-03-12</periodOfReport>
+            <nonDerivativeTable>
+                <nonDerivativeTransaction>
+                    <securityTitle><value>Common Stock</value></securityTitle>
+                    <transactionDate><value>2026-03-11</value></transactionDate>
+                    <transactionCoding>
+                        <transactionCode>P</transactionCode>
+                    </transactionCoding>
+                    <transactionAmounts>
+                        <transactionShares><value>1,250</value></transactionShares>
+                        <transactionPricePerShare><value>14.75</value></transactionPricePerShare>
+                        <transactionAcquiredDisposedCode><value>A</value></transactionAcquiredDisposedCode>
+                    </transactionAmounts>
+                    <postTransactionAmounts>
+                        <sharesOwnedFollowingTransaction><value>10,500</value></sharesOwnedFollowingTransaction>
+                    </postTransactionAmounts>
+                </nonDerivativeTransaction>
+            </nonDerivativeTable>
+        </ownershipDocument>
+        "#;
+
+        let transactions = monitor
+            .parse_form4(xml)
+            .expect("form4 parse should succeed");
+
+        assert_eq!(transactions.len(), 1);
+        let tx = &transactions[0];
+        assert_eq!(tx.authority, "TEST");
+        assert_eq!(tx.issuer_name, "Example Corp");
+        assert_eq!(tx.issuer_ticker, "EXM");
+        assert_eq!(tx.insider_name, "Jane Insider");
+        assert_eq!(tx.insider_cik, "0001234567");
+        assert_eq!(tx.transaction_code, "P");
+        assert_eq!(tx.transaction_type, "P");
+        assert_eq!(tx.security_title, "Common Stock");
+        assert_eq!(tx.transaction_date, "2026-03-11");
+        assert_eq!(tx.filing_date, "2026-03-12");
+        assert_eq!(tx.shares, 1250);
+        assert!((tx.price - 14.75).abs() < f64::EPSILON);
+        assert_eq!(tx.shares_owned_following, 10500);
+        assert_eq!(tx.acquired_or_disposed, "A");
+    }
+
+    #[test]
+    fn parse_form4_uses_deemed_execution_date_and_falls_back_to_period() {
+        let monitor = build_monitor();
+        let xml = r#"
+        <ownershipDocument>
+            <issuer>
+                <issuerName>Issuer One</issuerName>
+                <issuerTradingSymbol>ONE</issuerTradingSymbol>
+            </issuer>
+            <reportingOwner>
+                <reportingOwnerId>
+                    <rptOwnerCik>0000000001</rptOwnerCik>
+                    <rptOwnerName>Owner One</rptOwnerName>
+                </reportingOwnerId>
+            </reportingOwner>
+            <periodOfReport>2026-02-20</periodOfReport>
+            <nonDerivativeTable>
+                <nonDerivativeTransaction>
+                    <securityTitle><value>Class A</value></securityTitle>
+                    <deemedExecutionDate><value>2026-02-18</value></deemedExecutionDate>
+                    <transactionCoding><transactionCode>S</transactionCode></transactionCoding>
+                    <transactionAmounts>
+                        <transactionShares><value>100</value></transactionShares>
+                    </transactionAmounts>
+                </nonDerivativeTransaction>
+                <nonDerivativeTransaction>
+                    <securityTitle><value>Class A</value></securityTitle>
+                    <transactionCoding><transactionCode>P</transactionCode></transactionCoding>
+                    <transactionAmounts>
+                        <transactionShares><value>25</value></transactionShares>
+                    </transactionAmounts>
+                </nonDerivativeTransaction>
+            </nonDerivativeTable>
+        </ownershipDocument>
+        "#;
+
+        let transactions = monitor
+            .parse_form4(xml)
+            .expect("form4 parse should succeed");
+
+        assert_eq!(transactions.len(), 2);
+        assert_eq!(transactions[0].transaction_date, "2026-02-18");
+        assert_eq!(transactions[1].transaction_date, "2026-02-20");
+    }
+
+    #[test]
+    fn parse_form4_returns_empty_for_irrelevant_xml() {
+        let monitor = build_monitor();
+        let xml = r#"<root><note>no transactions here</note></root>"#;
+
+        let transactions = monitor
+            .parse_form4(xml)
+            .expect("parser should not fail on irrelevant xml");
+
+        assert!(transactions.is_empty());
+    }
+
+    #[test]
+    fn parse_helpers_handle_invalid_numbers() {
+        assert_eq!(SecForm4Monitor::parse_form4_number("1,234"), 1234);
+        assert_eq!(SecForm4Monitor::parse_form4_number("N/A"), 0);
+        assert!((SecForm4Monitor::parse_form4_price("12,345.67") - 12345.67).abs() < f64::EPSILON);
+        assert_eq!(SecForm4Monitor::parse_form4_price("bad"), 0.0);
     }
 }
