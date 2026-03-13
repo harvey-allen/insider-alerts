@@ -59,7 +59,7 @@ r#"██╗███╗   ██╗███████╗██╗███�
         .build()?;
     let redis_url = env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1/".to_string());
     let redis_client = redis::Client::open(redis_url)?;
-    let mut redis_conn = redis_client.get_async_connection().await?;
+    let mut redis_conn = redis_client.get_multiplexed_async_connection().await?;
 
     let selected_monitors = parse_selected_monitors();
     let run_sec = selected_monitors.contains("SEC");
