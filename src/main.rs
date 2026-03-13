@@ -1,40 +1,10 @@
-mod authorities;
-mod helpers;
-
 use redis::AsyncCommands;
 use reqwest::Client;
-use serde::Serialize;
-use std::collections::HashSet;
 use std::env;
 use tokio::time::{sleep, Duration};
 
-use authorities::sec::SecForm4Monitor;
-
-#[derive(Debug, Serialize)]
-pub struct InsiderTransaction {
-    pub authority: String,
-    pub issuer_name: String,
-    pub issuer_ticker: String,
-    pub insider_name: String,
-    pub insider_cik: String,
-    pub transaction_type: String,
-    pub security_title: String,
-    pub transaction_date: String,
-    pub shares: i64,
-    pub price: f64,
-    pub shares_owned_following: i64,
-    pub transaction_code: String,
-    pub acquired_or_disposed: String,
-    pub filing_date: String,
-}
-
-fn parse_selected_monitors() -> HashSet<String> {
-    let raw = env::var("MONITORS").unwrap_or_else(|_| "SEC".to_string());
-    raw.split(',')
-        .map(|value| value.trim().to_ascii_uppercase())
-        .filter(|value| !value.is_empty())
-        .collect()
-}
+use insider_alert_monitor::authorities::sec::SecForm4Monitor;
+use insider_alert_monitor::parse_selected_monitors_env;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -61,7 +31,7 @@ r#"██╗███╗   ██╗███████╗██╗███�
     let redis_client = redis::Client::open(redis_url)?;
     let mut redis_conn = redis_client.get_multiplexed_async_connection().await?;
 
-    let selected_monitors = parse_selected_monitors();
+    let selected_monitors = parse_selected_monitors_env();
     let run_sec = selected_monitors.contains("SEC");
     
 

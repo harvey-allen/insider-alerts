@@ -4,7 +4,7 @@ use regex::Regex;
 use reqwest::Client;
 use std::collections::HashSet;
 
-use crate::helpers::{log_green, log_red};
+use crate::helpers::{log_info, log_error};
 use crate::InsiderTransaction;
 
 const SEC_FEED: &str =
@@ -83,7 +83,7 @@ impl SecForm4Monitor {
                     format!("{}/{}", base, xml_file)
                 };
 
-                log_green("SEC", format!("Fetching XML: {}", xml_url));
+                log_info("SEC", format!("Fetching XML: {}", xml_url));
 
                 let xml = self.client.get(&xml_url).send().await?.text().await?;
 
@@ -92,7 +92,7 @@ impl SecForm4Monitor {
 
                     let transactions = self.parse_form4(&xml)?;
                     for tx in transactions {
-                        log_green("SEC", format!(
+                        log_info("SEC", format!(
                             "Parsed Form4: authority: {}, issuer: {}, insider: {}, type: {}, security: {}, date: {}, shares: {}, price: {}",
                             tx.authority,
                             tx.issuer_name,
@@ -277,7 +277,7 @@ impl SecForm4Monitor {
                 }
                 Ok(Event::Eof) => break,
                 Err(e) => {
-                    log_red("SEC", format!("XML parse error: {:?}", e));
+                    log_error("SEC", format!("XML parse error: {:?}", e));
                     break;
                 }
                 _ => {}
