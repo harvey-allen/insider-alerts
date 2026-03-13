@@ -26,6 +26,12 @@ Built with Rust for reliability and speed, the project is designed to support mu
 - Parses key transaction fields (issuer, insider, shares, price, transaction code, dates)
 - Writes each record to Redis
 - Uses authority-scoped Redis keys
+- Prevents duplicate Redis entries per authority during a run
+
+## Current Monitor Support
+
+- `SEC` monitor implemented in `src/authorities/sec.rs`
+- Monitor selection via `MONITORS` (currently expects `SEC`)
 
 ## Project Structure
 
@@ -44,3 +50,9 @@ Environment variables:
 
 - `MONITORS` - Which monitors to run (currently `SEC`)
 - `REDIS_URL` - Redis connection string (default: `redis://127.0.0.1/`)
+
+## Redis Keys
+
+- `monitor:all:transactions` - all unique transaction JSON payloads
+- `monitor:SEC:transactions` - authority-scoped unique transaction payloads
+- `monitor:SEC:transaction_ids` - dedupe set used before list insertion

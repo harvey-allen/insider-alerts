@@ -76,6 +76,7 @@ r#"██╗███╗   ██╗███████╗██╗███�
     let mut redis_keys_to_clear = vec!["monitor:all:transactions".to_string()];
     if run_sec {
         redis_keys_to_clear.push("monitor:SEC:transactions".to_string());
+        redis_keys_to_clear.push("monitor:SEC:transaction_ids".to_string());
     }
 
     let _: () = redis_conn.del(redis_keys_to_clear).await?;
@@ -96,6 +97,13 @@ r#"██╗███╗   ██╗███████╗██╗███�
         for transaction in transactions {
             let payload = serde_json::to_string(&transaction)?;
             let authority_key = format!("monitor:{}:transactions", transaction.authority);
+            let dedupe_key = format!("monitor:{}:transaction_ids", transaction.authority);
+            let is_new: usize = redis_conn.sadd(dedupe_key, &payload).await?;
+
+            if is_new == 0 {
+                continue;
+            }
+
             let _: () = redis_conn
                 .rpush("monitor:all:transactions", &payload)
                 .await?;
