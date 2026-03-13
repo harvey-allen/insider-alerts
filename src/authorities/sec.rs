@@ -89,8 +89,6 @@ impl SecForm4Monitor {
 
                 // Verify it's actual Form 4 XML
                 if xml.contains("<ownershipDocument") {
-                    // let saved_path = self.save_debug_xml(&xml_url, &xml)?; // Save the XML for debugging
-                    // println!("Saved debug XML: {}", saved_path.display());
 
                     let transactions = self.parse_form4(&xml)?;
                     for tx in transactions {
