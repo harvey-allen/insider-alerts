@@ -6,9 +6,6 @@ metadata:
   labels:
     app: insider-alerts
 spec:
-  # Keep at 1 replica: the monitor polls feeds and writes to Redis.
-  # Running multiple copies would produce duplicate work/alerts unless
-  # leader election or a distributed lock is added.
   replicas: 1
   strategy:
     type: Recreate
@@ -22,11 +19,6 @@ spec:
     spec:
       containers:
         - name: app
-          # Build & push first, e.g.:
-          #   docker build -t your-registry/insider-alerts:latest .
-          #   docker push your-registry/insider-alerts:latest
-          # For local clusters (minikube/kind) load the image instead and
-          # set imagePullPolicy: IfNotPresent / Never.
           image: your-registry/insider-alerts:latest
           imagePullPolicy: IfNotPresent
           envFrom:
